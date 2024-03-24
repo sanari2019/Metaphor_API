@@ -15,7 +15,7 @@ using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Web;
-using Microsoft.Extensions.Configuration;
+// using Microsoft.Extensions.Configuration;
 
 namespace Metaphor_Backend.Repositories // Adjust the namespace as per your project structure
 {
@@ -349,6 +349,43 @@ namespace Metaphor_Backend.Repositories // Adjust the namespace as per your proj
     }
 
 
+    
+    public class ResultFilesRepository : BaseRepository<ResultFiles, SqlConnection>
+    {
+        Setting sett = new Setting();
+
+        public ResultFilesRepository(Setting sett) : base(sett.ConnectionStrings)
+        {
+            this.sett = sett;
+            DbSettingMapper.Add<SqlConnection>(new SqlServerDbSetting(), true);
+            DbHelperMapper.Add<SqlConnection>(new SqlServerDbHelper(), true);
+            StatementBuilderMapper.Add<SqlConnection>(new SqlServerStatementBuilder(new SqlServerDbSetting()), true);
+        }
+
+        public void AddFileAsync(ResultFiles resultFiles)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                connection.Insert(resultFiles);
+
+            }
+        }
+        public ResultFiles GetById(int id)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+#pragma warning disable CS8603 // Possible null reference return.
+                return connection.Query<ResultFiles>(where: x => x.id == id).FirstOrDefault();
+#pragma warning restore CS8603 // Possible null reference return.
+            }
+        }
+
+
+
+        // Implement other repository methods...
+    }
+
+
 
 
     public class UsersRolesRepository : BaseRepository<User, SqlConnection>
@@ -625,11 +662,29 @@ namespace Metaphor_Backend.Repositories // Adjust the namespace as per your proj
             }
         }
 
-        public IEnumerable<SampleDetail> GetSampleDetailsBySampleNo(int sampleNo)
+        public SampleDetail GetSampleDetailsBySampleNo(int sampleNo)
         {
             using (var connection = new SqlConnection(sett.ConnectionStrings))
             {
-                return connection.Query<SampleDetail>(e => e.sampleNo == sampleNo);
+                 var sampleDetail = connection.Query<SampleDetail>(e => e.sampleNo == sampleNo).FirstOrDefault();
+
+                 if (sampleDetail != null)
+                 {
+                    // Retrieve employee details for each sample
+                    sampleDetail.cemployee = connection.Query<Employee>(e => e.id == sampleDetail.collectedBy).FirstOrDefault();
+                    sampleDetail.aemployee = connection.Query<Employee>(e => e.id == sampleDetail.acknowledgedBy).FirstOrDefault();
+                    sampleDetail.demployee = connection.Query<Employee>(e => e.id == sampleDetail.dispatchedBy).FirstOrDefault();
+                 }
+
+                return sampleDetail;
+      
+            }
+        }
+         public void UpdateSampleDetail(SampleDetail sampleDetail)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                connection.Update(sampleDetail);
             }
         }
 
@@ -670,13 +725,47 @@ namespace Metaphor_Backend.Repositories // Adjust the namespace as per your proj
             }
         }
 
+        // public IEnumerable<SamplePerService> GetSamplePerServicesBySampleNo(int sampleNo)
+        // {
+        //     using (var connection = new SqlConnection(sett.ConnectionStrings))
+        //     {
+        //         return connection.Query<SamplePerService>(e => e.sampleNo == sampleNo);
+        //     }
+        // }
         public IEnumerable<SamplePerService> GetSamplePerServicesBySampleNo(int sampleNo)
         {
             using (var connection = new SqlConnection(sett.ConnectionStrings))
             {
-                return connection.Query<SamplePerService>(e => e.sampleNo == sampleNo);
+                var samplePerServices = connection.Query<SamplePerService>(e => e.sampleNo == sampleNo).ToList();
+                // var samplePerService = new samplePerServices();
+                
+
+                // Query status master for each samplePerService
+                foreach (var samplePerService in samplePerServices)
+                {
+                    samplePerService.statusMaster =connection.Query<StatusMaster>(e => e.id == samplePerService.statusId).FirstOrDefault();
+                    samplePerService.servmaster = connection.Query<ServiceMaster>(e => e.id == samplePerService.serviceId).FirstOrDefault();
+                    samplePerService.sampleDetail = connection.Query<SampleDetail>(e => e.sampleNo == samplePerService.sampleNo).FirstOrDefault();
+                    samplePerService.cemployee = connection.Query<Employee>(e => e.id == samplePerService.sampleDetail.collectedBy).FirstOrDefault();
+                    samplePerService.aemployee = connection.Query<Employee>(e => e.id == samplePerService.sampleDetail.acknowledgedBy).FirstOrDefault();
+                    samplePerService.demployee = connection.Query<Employee>(e => e.id == samplePerService.sampleDetail.dispatchedBy).FirstOrDefault();
+
+                    //  connection.Query<StatusMaster>("SELECT * FROM [StatusMaster] WHERE Id = @StatusId", new { StatusId = samplePerService.statusId }).FirstOrDefault();
+                    // samplePerService.statusMaster = statusMaster;
+                }
+
+                return samplePerServices;
             }
         }
+        public IEnumerable<ViewUniqueSamplePerService> GetViewUniqueSamplePerServiceByUlid(int ulid)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                return connection.Query<ViewUniqueSamplePerService>(e => e.ulid == ulid);
+            }
+        
+        }
+
 
         // Add other methods as per your requirements
         public int GetLatestSampleNo()
@@ -689,7 +778,180 @@ namespace Metaphor_Backend.Repositories // Adjust the namespace as per your proj
                 return connection.ExecuteQuery<int>(query).FirstOrDefault();
             }
         }
+         public void UpdateSamplePerService(SamplePerService samplePerService)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                connection.Update(samplePerService);
+            }
+        }
+    //   public IEnumerable<SamplePerService> GetFilteredSamples(int sampleNo, int ulid, string status, DateTime startDate, DateTime endDate)
+    //     {
+    //         var sql = @"
+    //             EXEC [dbo].[GetFilteredSamples]
+    //             @startDate = @startDate,
+    //             @endDate = @endDate,
+    //             @sampleNo = @sampleNo,
+    //             @ulid = @ulid,
+    //             @status = @status;";
+
+    //         // Execute the stored procedure and return the result
+    //         return ExecuteQuery<SamplePerService>(sql, new
+    //         {
+    //             startDate,
+    //             endDate,
+    //             sampleNo,
+    //             ulid,
+    //             status
+    //         });
+    //     }
+        public List<ViewUniqueSamplePerService> GetFilteredSamples(int? sampleNo, int? ulid, int? statusId, DateTime startDate, DateTime endDate)
+        {
+            List<ViewUniqueSamplePerService> samples = new List<ViewUniqueSamplePerService>();
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                var parameters = new
+                {
+                    startDate = startDate,
+                    endDate = endDate,
+                    sampleNo = sampleNo ?? (object)DBNull.Value,
+                    ulid = ulid ?? (object)DBNull.Value,
+                    statusId = statusId ?? (object)DBNull.Value,
+                };
+
+                samples = connection.ExecuteQuery<ViewUniqueSamplePerService>(
+                    "[dbo].[GetFilteredSamples]",
+                    parameters,
+                    commandType: System.Data.CommandType.StoredProcedure
+                ).ToList();
+            }
+            return samples;
+        }
+
+        public List<RequestedServiceViewModel> GetFilteredRequestedServices(
+            DateTime startDate, 
+            DateTime endDate, 
+            int? sampleNo, 
+            int? sampleUlid, 
+            int? sampleStatusId, 
+            int? stageId, 
+            int? sampleServiceId, 
+            int? sampleHistoNo)
+        {
+            List<RequestedServiceViewModel> requestedServices = new List<RequestedServiceViewModel>();
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                var parameters = new
+                {
+                    @startDate = startDate,
+                    @endDate = endDate,
+                    @sampleNo = sampleNo ?? (object)DBNull.Value,
+                    @sampleUlid = sampleUlid ?? (object)DBNull.Value,
+                    @sampleStatusId = sampleStatusId ?? (object)DBNull.Value,
+                    @stageId = stageId ?? (object)DBNull.Value,
+                    @sampleServiceId = sampleServiceId ?? (object)DBNull.Value,
+                    @sampleHistoNo = sampleHistoNo ?? (object)DBNull.Value,
+                };
+
+                requestedServices = connection.ExecuteQuery<RequestedServiceViewModel>(
+                    "[dbo].[usp_requestedServiceMaster]", // Update the stored procedure name if necessary
+                    parameters,
+                    commandType: System.Data.CommandType.StoredProcedure
+                ).ToList();
+            }
+            return requestedServices;
+        }
+
+
+
     }
+    public class HistologySampleRepository : BaseRepository<HistologySample, SqlConnection>
+    {
+        Setting sett = new Setting();
+        public HistologySampleRepository(Setting sett) : base(sett.ConnectionStrings)
+        {
+            this.sett = sett;
+            DbSettingMapper.Add<SqlConnection>(new SqlServerDbSetting(), true);
+            DbHelperMapper.Add<SqlConnection>(new SqlServerDbHelper(), true);
+        }
+
+        // Other existing methods...
+
+        public void InsertHistologySample(HistologySample histologySample)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                connection.Insert(histologySample);
+            }
+        }
+
+        public HistologySample GetHistologySampleById(int id)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                return connection.Query<HistologySample>(id).FirstOrDefault();
+            }
+        }
+
+        public IEnumerable<HistologySample> GetHistologySamples()
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                return connection.QueryAll<HistologySample>();
+            }
+        }
+
+        public void UpdateHistologySample(HistologySample histologySample)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                connection.Update(histologySample);
+            }
+        }
+
+        // Add other methods as per your requirements
+         public int GetLatestHistoNo()
+        {
+
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+
+                var query = "SELECT MAX(histoNo)   FROM [Auction_Test].[dbo].[histologySample]";
+                return connection.ExecuteQuery<int>(query).FirstOrDefault();
+            }
+        }
+        public HistologySample GetHistologySampleByHistoNo(int histoNo)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                return connection.Query<HistologySample>(e => e.histoNo == histoNo).FirstOrDefault();
+            }
+        }
+        public HistologySample GetHistologySampleBySampleNo(int sampleNo)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                 var sampleDetail = connection.Query<HistologySample>(e => e.sampleNo == sampleNo).FirstOrDefault();
+
+                 if (sampleDetail != null)
+                 {
+                    // Retrieve employee details for each sample
+                    sampleDetail.gemployee = connection.Query<Employee>(e => e.id == sampleDetail.sampleGrossingPerformedBy).FirstOrDefault();
+                    sampleDetail.temployee = connection.Query<Employee>(e => e.id == sampleDetail.tissueProcessingPerformedBy).FirstOrDefault();
+                    sampleDetail.eemployee = connection.Query<Employee>(e => e.id == sampleDetail.embeddingPerformedBy).FirstOrDefault();
+                    sampleDetail.memployee = connection.Query<Employee>(e => e.id == sampleDetail.microtomyPerformedBy).FirstOrDefault();
+                    sampleDetail.semployee = connection.Query<Employee>(e => e.id == sampleDetail.stainingPerformedBy).FirstOrDefault();
+                    sampleDetail.serviceMaster =  connection.Query<ServiceMaster>(e => e.id == sampleDetail.serviceId).FirstOrDefault();
+                    // sampleDetail.samplePerService = connection.Query<SamplePerService>(e => e.id == sampleDetail.sampleNo).FirstOrDefault();
+
+                 }
+
+                return sampleDetail;
+      
+            }
+        }
+    }
+
 
     public class CollectionSiteRepository : BaseRepository<CollectionSite, SqlConnection>
     {
@@ -895,611 +1157,66 @@ namespace Metaphor_Backend.Repositories // Adjust the namespace as per your proj
         }
     }
 
-    //     public class ApprovalRequestRepository : BaseRepository<ApprovalRequest, SqlConnection>
-    //     {
-    //         Setting sett = new Setting();
-
-    //         public ApprovalRequestRepository(Setting sett) : base(sett.ConnectionStrings)
-    //         {
-    //             this.sett = sett;
-    //             DbSettingMapper.Add<SqlConnection>(new SqlServerDbSetting(), true);
-    //             DbHelperMapper.Add<SqlConnection>(new SqlServerDbHelper(), true);
-    //             StatementBuilderMapper.Add<SqlConnection>(new SqlServerStatementBuilder(new SqlServerDbSetting()), true);
-    //         }
-
-
-    //         public void InsertRequest(ApprovalRequest request)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 connection.Insert(request);
-    //             }
-    //         }
-
-    //         public ApprovalDetails GetApprovalDetailsByRequestId(int approvalRequestId)
-    //         {
-    //             try
-    //             {
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     return connection.ExecuteQuery<ApprovalDetails>(
-    //                                                 "[dbo].[usp_getApprovalDetails]",
-    //                             new { Approval_Request_Id = approvalRequestId },
-    //                             commandType: CommandType.StoredProcedure
-    //                         ).FirstOrDefault();
-    //                     // connection.Query<ApprovalDetails>(e => e.ApprovalRequestId == approvalRequestId).FirstOrDefault();
-    //                 }
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting approval details by request id: {ex.Message}", ex);
-    //             }
-    //         }
-
-
-
-
-    //         public List<ApprovalDetails> GetApprovalDetailssByRequestId(int approval_Request_Id)
-    //         {
-    //             var pendingDetails = new List<ApprovalDetails>();
-    //             try
-    //             {
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     // Assuming getpendingrequestsbyuserid is the stored procedure
-    //                     pendingDetails = connection.ExecuteQuery<ApprovalDetails>(
-    //     "[dbo].[usp_getApprovalDetails]",
-    //     new { Approval_Request_Id = approval_Request_Id },
-    //     commandType: CommandType.StoredProcedure
-    // ).ToList();
-
-
-    //                 }
-    //                 return pendingDetails;
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting approval details by request id: {ex.Message}", ex);
-    //             }
-    //         }
-
-
-    //         public List<ApprovalRequest> GetRequests()
-    //         {
-    //             var requestMain = new List<ApprovalRequest>();
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 requestMain = connection.QueryAll<ApprovalRequest>().ToList();
-    //             }
-    //             return requestMain;
-    //         }
-
-    //         public ApprovalRequest GetRequestById(int id)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    // #pragma warning disable CS8603 // Possible null reference return.
-    //                 return connection.Query<ApprovalRequest>(id).FirstOrDefault();
-    // #pragma warning restore CS8603 // Possible null reference return.
-    //             }
-    //         }
-    //         public ApprovalRequest GetRequestByPatientId(int patient_id)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    // #pragma warning disable CS8603 // Possible null reference return.
-    //                 return connection.Query<ApprovalRequest>(e => e.Patient_Id == patient_id).FirstOrDefault();
-    // #pragma warning restore CS8603 // Possible null reference return.
-    //             }
-    //         }
-    //         public ApprovalRequest GetRequestByRequestId(int request_id)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    // #pragma warning disable CS8603 // Possible null reference return.
-    //                 return connection.Query<ApprovalRequest>(e => e.request_Id == request_id).FirstOrDefault();
-    // #pragma warning restore CS8603 // Possible null reference return.
-    //             }
-    //         }
-    //         public List<ApprovalRequest> GetRequestsByRequestId(int request_id)
-    //         {
-    //             var requests = new List<ApprovalRequest>();
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 requests = connection.Query<ApprovalRequest>(e => e.request_Id == request_id).ToList();
-    //                 foreach (ApprovalRequest sv in requests)
-    //                 {
-    //                     // sv.User = connection.Query<User>(sv.EnteredBy).FirstOrDefault();
-    //                     // sv.Department = connection.Query<Department>(sv.DepartmentId).FirstOrDefault();
-    //                     sv.Patient = connection.Query<Patient>(sv.Patient_Id).FirstOrDefault();
-    //                     // var userRequests = GetRequestsByUserId(EnteredBy);
-
-    //                 }
-    //             }
-    //             return requests;
-    //         }
-
-    //         public void UpdateRequest(ApprovalRequest request)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 connection.Update(request);
-    //             }
-    //         }
-
-    //         public int DeleteRequest(ApprovalRequest request)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 return connection.Delete<ApprovalRequest>(request);
-    //             }
-    //         }
-
-    //         public List<ApprovalRequest> GetRequestsByUserId(int userId)
-    //         {
-    //             var requests = new List<ApprovalRequest>();
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 requests = connection.Query<ApprovalRequest>(e => e.Id == userId).ToList();
-
-    //             }
-    //             return requests;
-    //         }
-    //         public List<ApprovalRequest> GetApprovedRequests()
-    //         {
-    //             try
-    //             {
-    //                 var requests = new List<ApprovalRequest>();
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     requests = connection.Query<ApprovalRequest>("GetApprovedRequests").ToList();
-    //                 }
-    //                 return requests;
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting approved requests: {ex.Message}", ex);
-    //             }
-    //         }
-
-
-    //         public List<ApprovalRequest> GetPendingRequestsByUserId(int EnteredBy)
-    //         {
-    //             var pendingRequests = new List<ApprovalRequest>();
-    //             try
-    //             {
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     // Assuming getpendingrequestsbyuserid is the stored procedure
-    //                     pendingRequests = connection.ExecuteQuery<ApprovalRequest>("[dbo].[usp_getPendingRequestsByUserId]", new { EnteredBy = EnteredBy },
-    //                           commandType: System.Data.CommandType.StoredProcedure
-    //                       ).ToList();
-
-    //                     foreach (ApprovalRequest sv in pendingRequests)
-    //                     {
-    //                         // sv.User = connection.Query<User>(sv.EnteredBy).FirstOrDefault();
-    //                         // sv.Department = connection.Query<Department>(sv.DepartmentId).FirstOrDefault();
-    //                         // sv.Shift = connection.Query<Shift>(sv.ShiftId).FirstOrDefault();
-    //                         // var userRequests = GetRequestsByUserId(EnteredBy);
-    //                         // sv.PatientNames = userRequests.Select(r => r.PatientFirstName).ToList();
-    //                     }
-    //                 }
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting pending requests: {ex.Message}", ex);
-    //             }
-    //             return pendingRequests;
-    //         }
-
-
-    //         public List<ApprovalRequest> GetDecidedRequestsByUserId(int EnteredBy)
-    //         {
-    //             var decidedRequests = new List<ApprovalRequest>();
-    //             try
-    //             {
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     // Assuming getpendingrequestsbyuserid is the stored procedure
-    //                     decidedRequests = connection.ExecuteQuery<ApprovalRequest>("[dbo].[usp_getDecidedRequestsByUserId]", new { EnteredBy = EnteredBy },
-    //                           commandType: System.Data.CommandType.StoredProcedure
-    //                       ).ToList();
-    //                     foreach (ApprovalRequest sv in decidedRequests)
-    //                     {
-    //                         // sv.User = connection.Query<User>(sv.EnteredBy).FirstOrDefault();
-    //                         // sv.Department = connection.Query<Department>(sv.DepartmentId).FirstOrDefault();
-    //                         // sv.Shift = connection.Query<Shift>(sv.ShiftId).FirstOrDefault();
-    //                     }
-    //                 }
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting pending requests: {ex.Message}", ex);
-    //             }
-    //             return decidedRequests;
-    //         }
-
-
-
-    //         public List<RequestFormPatient> GetCnoPendingRequests()
-    //         {
-    //             var decidedRequests = new List<RequestFormPatient>();
-    //             try
-    //             {
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     // Assuming getpendingrequestsbyuserid is the stored procedure
-    //                     decidedRequests = connection.ExecuteQuery<RequestFormPatient>("[dbo].[usp_getCnoPendingRequests]",
-    //                           commandType: System.Data.CommandType.StoredProcedure
-    //                       ).ToList();
-    //                     foreach (RequestFormPatient sv in decidedRequests)
-    //                     {
-    //                         // sv.User = connection.Query<User>(sv.EnteredBy).FirstOrDefault();
-    //                         sv.approvalDetails = connection.ExecuteQuery<ApprovalDetails>(
-    //                                            "[dbo].[usp_getApprovalDetails]",
-    //                        new { Approval_Request_Id = sv.Approval_Request_Id },
-    //                        commandType: CommandType.StoredProcedure
-    //                    ).FirstOrDefault();
-    //                         sv.approval = connection.ExecuteQuery<Approval>(
-    //                                                 "SELECT * FROM [Metaphor].[dbo].[approvals] Where approval_request_id = @Approval_Request_Id",
-    //                             new { Approval_Request_Id = sv.Approval_Request_Id }
-    //                         ).FirstOrDefault();
-    //                         //         var query = "SELECT * FROM request_Form_Patients WHERE approval_request_id = @Approval_Request_Id";
-    //                         // var parameters = new { Approval_Request_Id = approvalRequestId };
-    //                         // return connection.ExecuteQuery<RequestFormPatient>(query, parameters).FirstOrDefault();
-
-    //                         sv.department = connection.Query<Department>(sv.approvalDetails.department_Id).FirstOrDefault();
-    //                         sv.user = connection.Query<User>(sv.approvalDetails.entered_By_User_Id).FirstOrDefault();
-    //                         sv.shift = connection.Query<Shift>(sv.approvalDetails.shift_Id).FirstOrDefault();
-    //                         sv.patient = connection.Query<Patient>(sv.approvalDetails.patient_Id).FirstOrDefault();
-    //                         // sv.Shift = connection.Query<Shift>(sv.ShiftId).FirstOrDefault();
-    //                     }
-    //                 }
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting pending requests: {ex.Message}", ex);
-    //             }
-    //             return decidedRequests;
-    //         }
-
-    //         public List<RequestFormPatient> GetSupApprovalRequests()
-    //         {
-    //             var decidedRequests = new List<RequestFormPatient>();
-    //             try
-    //             {
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     // Assuming getpendingrequestsbyuserid is the stored procedure
-    //                     decidedRequests = connection.ExecuteQuery<RequestFormPatient>("[dbo].[usp_getSupPendingRequests]",
-    //                           commandType: System.Data.CommandType.StoredProcedure
-    //                       ).ToList();
-    //                     foreach (RequestFormPatient sv in decidedRequests)
-    //                     {
-
-    //                         // #pragma warning disable CS8601 // Possible null reference assignment.
-    //                         //                         sv.approvalRequest = connection.ExecuteQuery<ApprovalRequest>(
-    //                         //                         "[dbo].[usp_getApprovalDetails]",
-    //                         //     new { Approval_Request_Id = sv.Approval_Request_Id },
-    //                         //     commandType: CommandType.StoredProcedure
-    //                         // ).FirstOrDefault();
-    //                         // #pragma warning restore CS8601 // Possible null reference assignment.
-    //                         sv.approvalDetails = connection.ExecuteQuery<ApprovalDetails>(
-    //                                                 "[dbo].[usp_getApprovalDetails]",
-    //                             new { Approval_Request_Id = sv.Approval_Request_Id },
-    //                             commandType: CommandType.StoredProcedure
-    //                         ).FirstOrDefault();
-    //                         sv.approval = connection.ExecuteQuery<Approval>(
-    //                                                 "SELECT * FROM [Metaphor].[dbo].[approvals] Where approval_request_id = @Approval_Request_Id",
-    //                             new { Approval_Request_Id = sv.Approval_Request_Id }
-    //                         ).FirstOrDefault();
-    //                         //         var query = "SELECT * FROM request_Form_Patients WHERE approval_request_id = @Approval_Request_Id";
-    //                         // var parameters = new { Approval_Request_Id = approvalRequestId };
-    //                         // return connection.ExecuteQuery<RequestFormPatient>(query, parameters).FirstOrDefault();
-
-    //                         sv.department = connection.Query<Department>(sv.approvalDetails.department_Id).FirstOrDefault();
-    //                         sv.user = connection.Query<User>(sv.approvalDetails.entered_By_User_Id).FirstOrDefault();
-    //                         sv.shift = connection.Query<Shift>(sv.approvalDetails.shift_Id).FirstOrDefault();
-    //                         sv.patient = connection.Query<Patient>(sv.approvalDetails.patient_Id).FirstOrDefault();
-
-
-    //                     }
-    //                 }
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting pending requests: {ex.Message}", ex);
-    //             }
-    //             return decidedRequests;
-    //         }
-
-    //         public List<ApprovalRequest> GetRequestsByUserIdFromView(int enteredByUserId)
-    //         {
-    //             try
-    //             {
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     return connection.ExecuteQuery<ApprovalRequest>(
-    //                         "[dbo].[usp_getRequestsByUserIdfromReq]",
-    //                         new { entered_by_user_id = enteredByUserId },
-    //                         commandType: CommandType.StoredProcedure
-    //                     ).ToList();
-    //                 }
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting requests by user from view: {ex.Message}", ex);
-    //             }
-    //         }
-
-
-
-
-    //     }
-
-
-    //     public class ApprovalRepository : BaseRepository<Approval, SqlConnection>
-    //     {
-    //         Setting sett = new Setting();
-
-    //         public ApprovalRepository(Setting sett) : base(sett.ConnectionStrings)
-    //         {
-    //             this.sett = sett;
-    //             DbSettingMapper.Add<SqlConnection>(new SqlServerDbSetting(), true);
-    //             DbHelperMapper.Add<SqlConnection>(new SqlServerDbHelper(), true);
-    //             StatementBuilderMapper.Add<SqlConnection>(new SqlServerStatementBuilder(new SqlServerDbSetting()), true);
-    //         }
-
-    //         public void InsertApproval(Approval approvalEntity)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 connection.Insert(approvalEntity);
-    //             }
-    //         }
-    //         public void UpdateApproval(Approval approvalEntity)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 connection.Update(approvalEntity);
-    //             }
-    //         }
-
-
-    //         public List<Approval> GetApprovals()
-    //         {
-    //             var approvals = new List<Approval>();
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 approvals = connection.QueryAll<Approval>().ToList();
-    //             }
-    //             return approvals;
-    //         }
-
-    //         public Approval GetApprovalById(int id)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    // #pragma warning disable CS8603 // Possible null reference return.
-    //                 return connection.Query<Approval>(id).FirstOrDefault();
-    // #pragma warning restore CS8603 // Possible null reference return.
-    //             }
-    //         }
-    //         public List<DistinctUserRequestViewModel> GetApprovalDetailsByUserId(int enteredByUserId)
-    //         {
-    //             try
-    //             {
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     return connection.ExecuteQuery<DistinctUserRequestViewModel>(
-    //                                                 "SELECT TOP (1000) * FROM [Metaphor].[dbo].[vw_DistinctUserRequestView] where entered_by_user_id=@entered_by_user_id",
-    //                             new { entered_by_user_id = enteredByUserId }
-    //                         ).ToList();
-    //                     // connection.Query<ApprovalDetails>(e => e.ApprovalRequestId == approvalRequestId).FirstOrDefault();
-    //                 }
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting approval details by request id: {ex.Message}", ex);
-    //             }
-    //         }
-
-    //         // Add more methods as needed for approval handling
-    //     }
-
-    //     public class PatientRepository : BaseRepository<Patient, SqlConnection>
-    //     {
-    //         Setting sett = new Setting();
-
-    //         public PatientRepository(Setting sett) : base(sett.ConnectionStrings)
-    //         {
-    //             this.sett = sett;
-    //             DbSettingMapper.Add<SqlConnection>(new SqlServerDbSetting(), true);
-    //             DbHelperMapper.Add<SqlConnection>(new SqlServerDbHelper(), true);
-    //             StatementBuilderMapper.Add<SqlConnection>(new SqlServerStatementBuilder(new SqlServerDbSetting()), true);
-    //         }
-
-    //         public void InsertPatient(Patient patient)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 connection.Insert(patient);
-    //             }
-    //         }
-
-    //         public void UpdatePatient(Patient patient)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 connection.Update(patient);
-    //             }
-    //         }
-
-    //         public int DeletePatient(Patient patient)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 return connection.Delete<Patient>(patient);
-    //             }
-    //         }
-
-    //         public List<Patient> GetPatients()
-    //         {
-    //             var patients = new List<Patient>();
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 patients = connection.QueryAll<Patient>().ToList();
-    //             }
-    //             return patients;
-    //         }
-
-    //         public Patient GetPatientById(int id)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    // #pragma warning disable CS8603 // Possible null reference return.
-    //                 return connection.Query<Patient>(id).FirstOrDefault();
-    // #pragma warning restore CS8603 // Possible null reference return.
-    //             }
-    //         }
-
-    //         public List<Patient> GetValidatedPatientByUser(int enteredByUserId)
-    //         {
-    //             try
-    //             {
-    //                 using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //                 {
-    //                     return connection.ExecuteQuery<Patient>("usp_getValidatedPatientByUser", new { entered_by_user_id = enteredByUserId },
-    //                           commandType: CommandType.StoredProcedure).ToList();
-    //                 }
-    //             }
-    //             catch (Exception ex)
-    //             {
-    //                 // Log or handle the exception appropriately
-    //                 throw new ApplicationException($"Error getting validated patients by user: {ex.Message}", ex);
-    //             }
-    //         }
-    //         public Patient GetValidatedPatientByIDandUserID(int patientId, int requestId)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 var result = connection
-    //                     .ExecuteQuery<Patient>(
-    //                         "usp_getValidatedPatientByIDandUserID",
-    //                         new { request_id = requestId, patient_id = patientId },
-    //                         commandType: CommandType.StoredProcedure
-    //                     )
-    //                     .FirstOrDefault();
-    //                 if (result == null)
-    //                 {
-
-    //                 }
-    // #pragma warning disable CS8603 // Possible null reference return.
-    //                 return result;
-    // #pragma warning restore CS8603 // Possible null reference return.
-    //             }
-    //         }
-
-
-
-
-    //     }
-    //     public class RequestFormPatientRepository : BaseRepository<RequestFormPatient, SqlConnection>
-    //     {
-    //         Setting sett = new Setting();
-
-    //         public RequestFormPatientRepository(Setting sett) : base(sett.ConnectionStrings)
-    //         {
-    //             this.sett = sett;
-    //             DbSettingMapper.Add<SqlConnection>(new SqlServerDbSetting(), true);
-    //             DbHelperMapper.Add<SqlConnection>(new SqlServerDbHelper(), true);
-    //             StatementBuilderMapper.Add<SqlConnection>(new SqlServerStatementBuilder(new SqlServerDbSetting()), true);
-    //         }
-
-    //         public void InsertRequestFormPatient(RequestFormPatient requestFormPatient)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 connection.Insert(requestFormPatient);
-    //             }
-    //         }
-
-    //         public void UpdateRequestFormPatient(RequestFormPatient requestFormPatient)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 connection.Update(requestFormPatient);
-    //             }
-    //         }
-
-    //         public void UpdateRequestFormPatientApprovalLevel(RequestFormPatient requestFormPatient)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 // var query = "Update request_form_patients set approval_";
-    //                 var query = "UPDATE request_form_patients SET approval_level_Id = @Approval_Level_id WHERE approval_request_id = @Approval_Request_Id";
-
-    //                 // Assuming ApprovalLevel and ApprovalRequestId are properties in your RequestFormPatient class
-    //                 var parameters = new
-    //                 {
-    //                     Approval_Level_Id = requestFormPatient.Approval_Level_Id,
-    //                     Approval_Request_Id = requestFormPatient.Approval_Request_Id
-    //                 };
-
-    //                 connection.ExecuteQuery<RequestFormPatient>(query, parameters);
-    //                 // connection.Update(requestFormPatient);
-    //             }
-    //         }
-
-    //         public int DeleteRequestFormPatient(RequestFormPatient requestFormPatient)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 return connection.Delete<RequestFormPatient>(requestFormPatient);
-    //             }
-    //         }
-
-    //         public List<RequestFormPatient> GetRequestFormPatients()
-    //         {
-    //             var requestFormPatients = new List<RequestFormPatient>();
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 requestFormPatients = connection.QueryAll<RequestFormPatient>().ToList();
-    //             }
-    //             return requestFormPatients;
-    //         }
-
-    //         public RequestFormPatient GetRequestFormPatientById(int approvalRequestId)
-    //         {
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-    //                 var query = "SELECT * FROM request_Form_Patients WHERE approval_request_id = @Approval_Request_Id";
-    //                 var parameters = new { Approval_Request_Id = approvalRequestId };
-    //                 return connection.ExecuteQuery<RequestFormPatient>(query, parameters).FirstOrDefault();
-
-    //             }
-    //         }
-
-    //         public int GetLatestApprovalRequestId()
-    //         {
-
-    //             using (var connection = new SqlConnection(sett.ConnectionStrings))
-    //             {
-
-    //                 var query = "SELECT MAX(Approval_Request_Id)   FROM [Metaphor].[dbo].[request_form_patients]";
-    //                 return connection.ExecuteQuery<int>(query).FirstOrDefault();
-    //             }
-    //         }
-    //     }
+      public class StatusMasterRepository : BaseRepository<StatusMaster, SqlConnection>
+    {
+        Setting sett = new Setting();
+
+        public StatusMasterRepository(Setting sett) : base(sett.ConnectionStrings)
+        {
+            this.sett = sett;
+            DbSettingMapper.Add<SqlConnection>(new SqlServerDbSetting(), true);
+            DbHelperMapper.Add<SqlConnection>(new SqlServerDbHelper(), true);
+            StatementBuilderMapper.Add<SqlConnection>(new SqlServerStatementBuilder(new SqlServerDbSetting()), true);
+        }
+
+        public void Insert(StatusMaster statusMaster)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                connection.Insert(statusMaster);
+            }
+        }
+
+        public void Update(StatusMaster statusMaster)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                connection.Update(statusMaster);
+            }
+        }
+
+        public void Delete(int id)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                connection.Delete<StatusMaster>(id);
+            }
+        }
+
+        public List<StatusMaster> GetAll()
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                return connection.QueryAll<StatusMaster>().ToList();
+            }
+        }
+
+        public StatusMaster GetById(int id)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                return connection.Query<StatusMaster>(id).FirstOrDefault();
+            }
+        }
+
+        public IEnumerable<StatusMaster> GetStatusMasterByStatusType(string statusType)
+        {
+            using (var connection = new SqlConnection(sett.ConnectionStrings))
+            {
+                return connection.Query<StatusMaster>(e => e.statusType == statusType).ToList();
+            }
+        }
+    }
 
 
 

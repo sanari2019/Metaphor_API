@@ -9,7 +9,7 @@ namespace Metaphor_Backend.Models
         public int id { get; set; }
         public int sampleNo { get; set; }
         public bool sampleCollected { get; set; }
-        public bool collectedBy { get; set; }
+        public int collectedBy { get; set; }
         public DateTime? collectedDate { get; set; }
         public bool sampleAcknowledged { get; set; }
         public int acknowledgedBy { get; set; }
@@ -23,5 +23,9 @@ namespace Metaphor_Backend.Models
         public string? remarks { get; set; }
         public bool active { get; set; }
         public int encodedBy { get; set; }
+
+        public Employee? cemployee { get; set; }
+        public Employee? aemployee { get; set; }
+        public Employee? demployee { get; set; }
     }
 }

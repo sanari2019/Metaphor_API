@@ -6,10 +6,10 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
+// using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+// using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -44,6 +44,7 @@ builder.Services.AddSingleton<PatientRepository>();
 builder.Services.AddSingleton<PatientFilesRepository>();
 builder.Services.AddSingleton<SampleDetailRepository>();
 builder.Services.AddSingleton<SamplePerServiceRepository>();
+builder.Services.AddSingleton<HistologySampleRepository>();
 
 builder.Services.AddSingleton<CollectionSiteRepository>();
 
@@ -61,6 +62,7 @@ builder.Services.AddSingleton<ServiceMasterRepository>();
 builder.Services.AddScoped<UsersRolesRepository>();
 // builder.Services.AddScoped<PatientRepository>();
 // builder.Services.AddScoped<RequestFormPatientRepository>();
+builder.Services.AddScoped<StatusMasterRepository>();
 builder.Services.AddRazorPages();
 builder.Services.AddSignalR();
 builder.Services.AddCors(options =>

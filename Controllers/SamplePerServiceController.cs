@@ -38,6 +38,9 @@ namespace Metaphor_Backend.Controllers
                     ? 10001
                     : latestSampleNo + 1;
 
+                    // Declare a list to store ServiceMaster objects
+                    List<ServiceMaster> serviceMasters = new List<ServiceMaster>();
+
                 // Iterate through the serviceMaster list
                 foreach (var serviceMasterId in samplePerService.serviceMaster)
                 {
@@ -51,7 +54,8 @@ namespace Metaphor_Backend.Controllers
                     // If the ServiceMaster exists, add it to the SamplePerService
                     if (serviceMaster != null)
                     {
-                        // samplePerService.serviceMaster.Add(serviceMaster);
+                        serviceMasters.Add(serviceMaster);
+                        samplePerService.serviceMasters.Add(serviceMaster);
                         samplePerService.serviceId = serviceMaster.id;
                         samplePerService.departmentId = serviceMaster.departmentId;
                         // samplePerService.
@@ -70,7 +74,7 @@ namespace Metaphor_Backend.Controllers
                     sampleNo = samplePerService.sampleNo,
                     // Set other properties to null or default values
                     sampleCollected = false,
-                    collectedBy = false,
+                    collectedBy = 0,
                     collectedDate = null,
                     sampleAcknowledged = false,
                     acknowledgedBy = 0,
@@ -123,6 +127,97 @@ namespace Metaphor_Backend.Controllers
             return Ok(repository.GetSamplePerServicesBySampleNo(sampleNo));
         }
 
-        // Add other action methods as per your requirements
-    }
+         [HttpGet("ulid/{ulid}")]
+        public ActionResult<IEnumerable<ViewUniqueSamplePerService>> GetViewUniqueSamplePerServiceByUlid(int ulid)
+        {
+            try
+            {
+                var result = repository.GetViewUniqueSamplePerServiceByUlid(ulid);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+         [HttpPost("update")]
+        public ActionResult<IEnumerable<SamplePerService>> UpdateSamplePerService([FromBody] SamplePerService samplePerService)
+        {
+            try
+            {
+                //   // Iterate through the serviceMaster list
+                // foreach (var sample in samplePerService)
+                // {
+                //     samplePerService.statusId = 2;
+                //     repository.UpdateSamplePerService(samplePerService);
+            
+                // }
+                // var samp =_sampleDetailRepository.GetSampleDetailsBySampleNo(samplePerService.sampleNo);
+                // _sampleDetailRepository.UpdateSampleDetail(samp);
+                return Ok("SamplePerService updated successfully.");
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+        [HttpPost("filtered")]
+        public ActionResult<IEnumerable<ViewUniqueSamplePerService>> GetFilteredSamples(
+            [FromBody] SampleFilterModel filterModel)
+        {
+            try
+            {
+                if (filterModel == null)
+                {
+                    return BadRequest("Invalid filter data.");
+                }
+
+                var samples = repository.GetFilteredSamples(
+                    filterModel.sampleNo,
+                    filterModel.ulid,
+                    filterModel.statusId,
+                    filterModel.startDate,
+                    filterModel.endDate
+                );
+
+                return Ok(samples);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+        [HttpPost("filteredrequest")]
+        public ActionResult<IEnumerable<RequestedServiceViewModel>> GetFilteredRequestedServices(
+            [FromBody] ServiceRequestModel filterModel)
+        {
+            try
+            {
+                if (filterModel == null)
+                {
+                    return BadRequest("Invalid filter data.");
+                }
+
+                var service = repository.GetFilteredRequestedServices(
+                filterModel.startDate,
+                filterModel.endDate,
+                filterModel.sampleNo,
+                filterModel.sampleUlid,
+                filterModel.sampleStatusId,
+                filterModel.stageId,
+                filterModel.sampleServiceId,
+                filterModel.sampleHistoNo
+            );
+                return Ok(service);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+
+        }
 }

@@ -35,9 +35,14 @@ namespace Metaphor_Backend.Models // Replace YourNamespace with your actual name
         public DateTime lastChangedDate { get; set; }
         public string designation { get; set; }
         public bool isAccessAllResource { get; set; }
+        public bool isSuperAdmin { get; set; }
+        public bool isPhlebotomist { get; set; }
+        public bool isScientist { get; set; }
+        public bool isDoctor { get; set; }
         public int facilityId { get; set; }
         public string userName { get; set; }
         public string password { get; set; }
         public string employeeDisplayName { get; set; }
+        
     }
 }

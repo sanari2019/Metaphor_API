@@ -7,7 +7,7 @@ namespace Metaphor_Backend.Models
     public class SamplePerService
     {
         public int id { get; set; }
-        public int sampleTypeid { get; set; }
+        public int sampleTypeId { get; set; }
         public int sampleNo { get; set; }
         public int serviceId { get; set; }
         public int departmentId { get; set; }
@@ -19,6 +19,7 @@ namespace Metaphor_Backend.Models
         public int? labSupervisor { get; set; }
         public int? labDoctor { get; set; }
         public int? statusId { get; set; }
+        public int? stageId { get; set; }
         public int? histoNo { get; set; }
         public int encodedBy { get; set; }
         public DateTime encodedDate { get; set; }
@@ -38,8 +39,16 @@ namespace Metaphor_Backend.Models
         public bool isRedone { get; set; }
         public string? location { get; set; }
         public int employeeTypePhase { get; set; }
-        
+        public int user{get; set;}
+        public bool isHistoFilled { get; set; }
 
         public List<int> serviceMaster { get; set; }
+        public ServiceMaster servmaster { get; set; }
+        public List<object> serviceMasters { get; set; }
+        public StatusMaster statusMaster {get; set; }
+        public SampleDetail sampleDetail {get; set; }
+        public Employee cemployee {get; set; }
+        public Employee aemployee {get; set; }
+         public Employee demployee {get; set; }
     }
 }
